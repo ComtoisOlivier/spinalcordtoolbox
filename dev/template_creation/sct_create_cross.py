@@ -56,13 +56,14 @@ def main():
             verbose = int(arg)
     
     # display usage if a mandatory argument is not provided
-    if fname == '' :
+    if fname == '' and fname_template == '':
         usage()
     
     # check existence of input files
     print'\nCheck if file exists ...'
     
-    sct.check_file_exist(fname)
+    if fname != '':
+        sct.check_file_exist(fname)
     
     if fname_template != '':
         sct.check_file_exist(fname_template)
@@ -76,45 +77,45 @@ def main():
     print'  Template ...................... '+fname_template
     print'  Verbose ........................... '+str(verbose)
     
+    if fname != '':
+        print '\nGet dimensions of input...'
+        nx, ny, nz, nt, px, py, pz, pt = sct.get_dimension(fname)
+        print '.. matrix size: '+str(nx)+' x '+str(ny)+' x '+str(nz)
+        print '.. voxel size:  '+str(px)+'mm x '+str(py)+'mm x '+str(pz)+'mm'
     
-    print '\nGet dimensions of input...'
-    nx, ny, nz, nt, px, py, pz, pt = sct.get_dimension(fname)
-    print '.. matrix size: '+str(nx)+' x '+str(ny)+' x '+str(nz)
-    print '.. voxel size:  '+str(px)+'mm x '+str(py)+'mm x '+str(pz)+'mm'
+        file = nibabel.load(fname)
+        data = file.get_data()
+        hdr = file.get_header()
     
-    file = nibabel.load(fname)
-    data = file.get_data()
-    hdr = file.get_header()
+        data = data*0
     
-    data = data*0
+        if cross == 'mm' : 
+            gapx = int(round(gapxy/px))
+            gapy = int(round(gapxy/py))
     
-    if cross == 'mm' : 
-        gapx = int(round(gapxy/px))
-        gapy = int(round(gapxy/py))
+            data[x,y,0] = 1
+            data[x,y,nz-1] = 2
+            data[x+gapx,y,nz-1] = 3
+            data[x-gapx,y,nz-1] = 4
+            data[x,y+gapy,nz-1] = 5
+            data[x,y-gapy,nz-1] = 6
     
-        data[x,y,0] = 1
-        data[x,y,nz-1] = 2
-        data[x+gapx,y,nz-1] = 3
-        data[x-gapx,y,nz-1] = 4
-        data[x,y+gapy,nz-1] = 5
-        data[x,y-gapy,nz-1] = 6
+        if cross == 'voxel' :
+            gapxy = int(gapxy)
+            data[x,y,0] = 1
+            data[x,y,nz-1] = 2
+            data[x+gapxy,y,nz-1] = 3
+            data[x-gapxy,y,nz-1] = 4
+            data[x,y+gapxy,nz-1] = 5
+            data[x,y-gapxy,nz-1] = 6
     
-    if cross == 'voxel' :
-        gapxy = int(gapxy)
-        data[x,y,0] = 1
-        data[x,y,nz-1] = 2
-        data[x+gapxy,y,nz-1] = 3
-        data[x-gapxy,y,nz-1] = 4
-        data[x,y+gapxy,nz-1] = 5
-        data[x,y-gapxy,nz-1] = 6
-    
-    print '\nSave volume ...'
-    hdr.set_data_dtype('float32') # set imagetype to uint8
-    # save volume
-    #data = data.astype(float32, copy =False)
-    img = nibabel.Nifti1Image(data, None, hdr)
-    file_name = 'landmark_native.nii.gz'
-    nibabel.save(img,file_name)
+        print '\nSave volume ...'
+        hdr.set_data_dtype('float32') # set imagetype to uint8
+        # save volume
+        #data = data.astype(float32, copy =False)
+        img = nibabel.Nifti1Image(data, None, hdr)
+        file_name = 'landmark_native.nii.gz'
+        nibabel.save(img,file_name)
     
     
     if fname_template != '' :
