@@ -22,13 +22,20 @@ import sys
 import getopt
 import sct_utils as sct
 import os
+from commands import getstatusoutput
 def main():
+    
+      #
+    # # get path of the toolbox
+    # status, path_sct = getstatusoutput('echo $SCT_DIR')
+    # print path_sct
+    #
     
     #Initialization
     fname = ''
     landmarks_native = ''
-    landmarks_template = ''
-    reference = ''
+    landmarks_template = path_sct + '/dev/template_creation/template_landmarks-mm.nii.gz'
+    reference = path_sct + '/dev/template_creation/template_shape.nii.gz'
     verbose = param.verbose
         
     try:
@@ -73,11 +80,11 @@ def main():
 
 
     print '\nEstimate rigid transformation between paired landmarks...'
-    sct.run('ANTSUseLandmarkImagesToGetAffineTransform ' + landmarks_template + ' '+ landmarks_native + ' affine ' + transfo)
+    sct.run('sct_ANTSUseLandmarkImagesToGetAffineTransform ' + landmarks_template + ' '+ landmarks_native + ' affine ' + transfo)
     
     # Apply rigid transformation
     print '\nApply affine transformation to native landmarks...'
-    sct.run('WarpImageMultiTransform 3 ' + fname + ' ' + output_name + ' -R ' + reference + ' ' + transfo)
+    sct.run('sct_WarpImageMultiTransform 3 ' + fname + ' ' + output_name + ' -R ' + reference + ' ' + transfo)
     
     
   
@@ -99,7 +106,7 @@ USAGE
 MANDATORY ARGUMENTS
   -i <input_volume>         input straight cropped volume. No Default value
   -n <anatomical_landmarks> landmarks in native space. See sct_create_cross.py
-  -t <template_landmarks>   landmarks in template_space. See sct_create_croos.py
+  -t <template_landmarks>   landmarks in template_space. See sct_create_croos.py 
   -R <reference>            Reference image. Empty template image
   
 OPTIONAL ARGUMENTS

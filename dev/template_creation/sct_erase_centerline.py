@@ -103,12 +103,11 @@ OPTIONAL ARGUMENTS
   -v {0,1}                   verbose. Default="""+str(param.verbose)+"""
  
   -h                         help. Show this message
-
-EXAMPLE
-  """+os.path.basename(__file__)+""" -i straight_centerline.nii.gz -x 55 -y 222\n"""
+"""
 
     # exit program
     sys.exit(2)
+
 
 
 #=======================================================================================================================
