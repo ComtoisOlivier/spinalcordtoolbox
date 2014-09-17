@@ -116,7 +116,7 @@ def main():
         img = nibabel.Nifti1Image(data, None, hdr)
         file_name = 'landmark_native.nii.gz'
         nibabel.save(img,file_name)
-    
+        print '\nFile created : ' + file_name
     
     if fname_template != '' :
     
@@ -163,7 +163,7 @@ def main():
         img_t = nibabel.Nifti1Image(data_t, None, hdr_t)
         file_name_t = 'template_landmarks.nii.gz'
         nibabel.save(img_t,file_name_t)
-    
+        print '\nFile created : ' + file_name_t
 
 
 

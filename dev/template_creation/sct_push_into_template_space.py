@@ -25,12 +25,12 @@ import os
 from commands import getstatusoutput
 def main():
     
-      #
-    # # get path of the toolbox
-    # status, path_sct = getstatusoutput('echo $SCT_DIR')
-    # print path_sct
-    #
     
+    # get path of the toolbox
+    status, path_sct = getstatusoutput('echo $SCT_DIR')
+    #print path_sct
+
+
     #Initialization
     fname = ''
     landmarks_native = ''
@@ -86,7 +86,7 @@ def main():
     print '\nApply affine transformation to native landmarks...'
     sct.run('sct_WarpImageMultiTransform 3 ' + fname + ' ' + output_name + ' -R ' + reference + ' ' + transfo)
     
-    
+    print '\nFile created : ' + output_name
   
     
 def usage():

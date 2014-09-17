@@ -16,6 +16,7 @@ class param:
     ## The constructor
     def __init__(self):
         self.verbose = 1
+        self.output_name = 'generated_centerline.nii.gz'
         
 # check if needed Python libraries are already installed or not
 import sys
@@ -32,9 +33,10 @@ def main():
     #Initialization
     fname = ''
     verbose = param.verbose
-        
+    output_name = param.output_name
+         
     try:
-         opts, args = getopt.getopt(sys.argv[1:],'hi:v:')
+         opts, args = getopt.getopt(sys.argv[1:],'hi:o:v:')
     except getopt.GetoptError:
         usage()
     for opt, arg in opts :
@@ -42,6 +44,8 @@ def main():
             usage()
         elif opt in ("-i"):
             fname = arg         
+        elif opt in ("-o"):
+            output_name = arg    
         elif opt in ('-v'):
             verbose = int(arg)
     
@@ -107,21 +111,22 @@ def main():
  #    ax.plot(xnew,ynew,znew,zdir='z')
  #    plt.show()
  #
-    plt.figure()
-    plt.plot(Z_new,X_fit)
-    plt.plot(Z,X,'o',linestyle = 'None')
-    plt.show()
+    if verbose==2 : 
+        plt.figure()
+        plt.plot(Z_new,X_fit)
+        plt.plot(Z,X,'o',linestyle = 'None')
+        plt.show()
 
-    plt.figure()
-    plt.plot(Z_new,Y_fit)
-    plt.plot(Z,Y,'o',linestyle = 'None')
-    plt.show()
+        plt.figure()
+        plt.plot(Z_new,Y_fit)
+        plt.plot(Z,Y,'o',linestyle = 'None')
+        plt.show()
 
-    fig1 = plt.figure()
-    ax = Axes3D(fig1)
-    ax.plot(X,Y,Z,'o',linestyle = 'None',zdir='z')
-    ax.plot(X_fit,Y_fit,Z_new,zdir='z')
-    plt.show()
+        fig1 = plt.figure()
+        ax = Axes3D(fig1)
+        ax.plot(X,Y,Z,'o',linestyle = 'None',zdir='z')
+        ax.plot(X_fit,Y_fit,Z_new,zdir='z')
+        plt.show()
 
     
     data =data*0
@@ -135,8 +140,10 @@ def main():
     # save volume
     #data = data.astype(float32, copy =False)
     img = nibabel.Nifti1Image(data, None, hdr)
-    file_name = 'generated_centerline.nii.gz'
+    file_name = output_name
     nibabel.save(img,file_name)
+    
+    print '\nFile created : ' + output_name
     
     del data
     
@@ -162,8 +169,9 @@ MANDATORY ARGUMENTS
   -i <input_volume>         input volume. No Default value
  
 OPTIONAL ARGUMENTS
-  -v {0,1}                   verbose. Default="""+str(param.verbose)+"""
-  -h                         help. Show this message
+  -o <output_name>          name of the output. Default="""+str(param.output_name)+""" 
+  -v {0,1,2}                verbose.Verbose 2 for plotting. Default="""+str(param.verbose)+"""
+  -h                        help. Show this message
 
 EXAMPLE
   """+os.path.basename(__file__)+""" -i volume.nii.gz\n"""
