@@ -37,9 +37,10 @@ def main():
     landmarks_template = path_sct + '/dev/template_creation/template_landmarks-mm.nii.gz'
     reference = path_sct + '/dev/template_creation/template_shape.nii.gz'
     verbose = param.verbose
+    output_name = 'native2temp.nii.gz'
         
     try:
-         opts, args = getopt.getopt(sys.argv[1:],'hi:n:t:R:v:')
+         opts, args = getopt.getopt(sys.argv[1:],'hi:n:t:R:o:v:')
     except getopt.GetoptError:
         usage()
     for opt, arg in opts :
@@ -52,7 +53,9 @@ def main():
         elif opt in ("-t"):
             landmarks_template = arg
         elif opt in ("-R"):
-            reference = arg                
+            reference = arg 
+        elif opt in ("-o"):
+            output_name = arg               
         elif opt in ('-v'):
             verbose = int(arg)
     
@@ -68,7 +71,6 @@ def main():
     sct.check_file_exist(landmarks_template)
     sct.check_file_exist(reference)
         
-    output_name = 'native2temp.nii.gz'
     transfo = 'native2temp.txt'
     # Display arguments
     print'\nCheck input arguments...'
@@ -110,8 +112,9 @@ MANDATORY ARGUMENTS
   -R <reference>            Reference image. Empty template image
   
 OPTIONAL ARGUMENTS
-  -v {0,1}                   verbose. Default="""+str(param.verbose)+"""
-  -h                         help. Show this message
+  -o <output_name>          output name. Default : native2temp.nii.gz
+  -v {0,1}                  verbose. Default="""+str(param.verbose)+"""
+  -h                        help. Show this message
 
 EXAMPLE
   """+os.path.basename(__file__)+""" -i volume_image.nii.gz -n native_landmarks.nii.gz -t native_template.nii.gz -R template_shape.nii.gz\n"""
