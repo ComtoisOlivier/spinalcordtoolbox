@@ -17,7 +17,7 @@ class Image(object):
     """
 
     """
-    def __init__(self, param=None, hdr=None, orientation=None, absolutepath="", verbose=1, split=False):
+    def __init__(self, param=None, hdr=None, orientation=None, absolute_path="", verbose=1):
         from numpy import zeros, ndarray, generic
         from sct_utils import extract_fname
 
@@ -25,7 +25,7 @@ class Image(object):
         self.data = None
         self.hdr = None
         self.orientation = None
-        self.absolutepath = ""
+        self.absolute_path = ""
         self.path = ""
         self.file_name = ""
         self.ext = ""
@@ -33,7 +33,7 @@ class Image(object):
 
         # load an image from file
         if type(param) is str:
-            self.loadFromPath(param, verbose)
+            self.load_from_path(param, verbose)
         # copy constructor
         elif isinstance(param, type(self)):
             self.copy(param)
@@ -43,43 +43,37 @@ class Image(object):
             self.dim = param
             self.hdr = hdr
             self.orientation = orientation
-            self.absolutepath = absolutepath
-            self.path, self.file_name, self.ext = extract_fname(absolutepath)
+            self.absolute_path = absolute_path
+            self.path, self.file_name, self.ext = extract_fname(absolute_path)
         # create a copy of im_ref
         elif isinstance(param, (ndarray, generic)):
             self.data = param
             self.dim = self.data.shape
             self.hdr = hdr
             self.orientation = orientation
-            self.absolutepath = absolutepath
-            self.path, self.file_name, self.ext = extract_fname(absolutepath)
+            self.absolute_path = absolute_path
+            self.path, self.file_name, self.ext = extract_fname(absolute_path)
         else:
-
             raise TypeError(' Image constructor takes at least one argument.')
-
-        """
-        if split:
-            self.data = self.split_data()
-        """
 
     def __deepcopy__(self, memo):
         from copy import deepcopy
-        return type(self)(deepcopy(self.data,memo),deepcopy(self.hdr,memo),deepcopy(self.orientation,memo),deepcopy(self.absolutepath,memo))
+        return type(self)(deepcopy(self.data, memo), deepcopy(self.hdr, memo), deepcopy(self.orientation, memo), deepcopy(self.absolute_path, memo))
 
-    def copy(self, image=None):
+    def copy(self, image_to_copy=None):
         from copy import deepcopy
         from sct_utils import extract_fname
         if image is not None:
-            self.data = deepcopy(image.data)
-            self.dim = deepcopy(image.dim)
-            self.hdr = deepcopy(image.hdr)
-            self.orientation = deepcopy(image.orientation)
-            self.absolutepath = deepcopy(image.absolutepath)
-            self.path, self.file_name, self.ext = extract_fname(self.absolutepath)
+            self.data = deepcopy(image_to_copy.data)
+            self.dim = deepcopy(image_to_copy.dim)
+            self.hdr = deepcopy(image_to_copy.hdr)
+            self.orientation = deepcopy(image_to_copy.orientation)
+            self.absolute_path = deepcopy(image_to_copy.absolute_path)
+            self.path, self.file_name, self.ext = extract_fname(self.absolute_path)
         else:
             return deepcopy(self)
 
-    def loadFromPath(self, path, verbose):
+    def load_from_path(self, path, verbose):
         """
         This function load an image from an absolute path using nibabel library
         :param path: path of the file from which the image will be loaded
@@ -92,22 +86,20 @@ class Image(object):
         check_file_exist(path, verbose=verbose)
         try:
             im_file = load(path)
+            self.orientation = get_orientation(path)
+            self.data = im_file.get_data()
+            self.hdr = im_file.get_header()
+            self.absolute_path = path
+            self.path, self.file_name, self.ext = extract_fname(path)
         except spatialimages.ImageFileError:
             printv('Error: make sure ' + path + ' is an image.')
-        self.orientation = get_orientation(path)
-        self.data = im_file.get_data()
-        self.hdr = im_file.get_header()
-        self.absolutepath = path
-        self.path, self.file_name, self.ext = extract_fname(path)
 
     def setFileName(self, filename):
         from sct_utils import extract_fname
-        self.absolutepath = filename
+        self.absolute_path = filename
         self.path, self.file_name, self.ext = extract_fname(filename)
 
-    def changeType(self, type=''):
-        from numpy import uint8, uint16, uint32, uint64, int8, int16, int32, int64, float32, float64
-
+    def change_type(self, voxel_datatype=''):
         """
         Change the voxel type of the image
         :param type:    if not set, the image is saved in standard type
@@ -129,46 +121,48 @@ class Image(object):
                         (2048, 'complex256', _complex256t, "NIFTI_TYPE_COMPLEX256"),
         :return:
         """
-        if type == '':
-            type = self.hdr.get_data_dtype()
+        if voxel_datatype == '':
+            voxel_datatype = self.hdr.get_data_dtype()
 
-        if type == 'minimize' or type == 'minimize_int':
+        if voxel_datatype == 'minimize' or voxel_datatype == 'minimize_int':
             from numpy import nanmax, nanmin
-            # compute max value in the image and choose the best pixel type to represent all the pixels within smallest memory space
+            # compute max value in the image and choose the best pixel type to represent all the pixels within smallest
+            # memory space
             # warning: does not take intensity resolution into account, neither complex voxels
             max_vox = nanmax(self.data)
             min_vox = nanmin(self.data)
 
             # check if voxel values are real or integer
-            isInteger = True
-            if type == 'minimize':
+            is_integer = True
+            if voxel_datatype == 'minimize':
                 for vox in self.data.flatten():
                     if int(vox) != vox:
-                        isInteger = False
+                        is_integer = False
                         break
 
-            if isInteger:
-                from numpy import iinfo, uint8, uint16, uint32, uint64
+            if is_integer:
                 if min_vox >= 0:  # unsigned
+                    from numpy import iinfo, uint8, uint16, uint32, uint64
                     if max_vox <= iinfo(uint8).max:
-                        type = 'uint8'
+                        voxel_datatype = 'uint8'
                     elif max_vox <= iinfo(uint16):
-                        type = 'uint16'
+                        voxel_datatype = 'uint16'
                     elif max_vox <= iinfo(uint32).max:
-                        type = 'uint32'
+                        voxel_datatype = 'uint32'
                     elif max_vox <= iinfo(uint64).max:
-                        type = 'uint64'
+                        voxel_datatype = 'uint64'
                     else:
                         raise ValueError("Maximum value of the image is to big to be represented.")
                 else:
+                    from numpy import iinfo, int8, int16, int32, int64
                     if max_vox <= iinfo(int8).max and min_vox >= iinfo(int8).min:
-                        type = 'int8'
+                        voxel_datatype = 'int8'
                     elif max_vox <= iinfo(int16).max and min_vox >= iinfo(int16).min:
-                        type = 'int16'
+                        voxel_datatype = 'int16'
                     elif max_vox <= iinfo(int32).max and min_vox >= iinfo(int32).min:
-                        type = 'int32'
+                        voxel_datatype = 'int32'
                     elif max_vox <= iinfo(int64).max and min_vox >= iinfo(int64).min:
-                        type = 'int64'
+                        voxel_datatype = 'int64'
                     else:
                         raise ValueError("Maximum value of the image is to big to be represented.")
             else:
@@ -176,20 +170,20 @@ class Image(object):
                 # if max_vox <= np.finfo(np.float16).max and min_vox >= np.finfo(np.float16).min:
                 #    type = 'np.float16' # not supported by nibabel
                 if max_vox <= finfo(float32).max and min_vox >= finfo(float32).min:
-                    type = 'float32'
+                    voxel_datatype = 'float32'
                 elif max_vox <= finfo(float64).max and min_vox >= finfo(float64).min:
-                    type = 'float64'
+                    voxel_datatype = 'float64'
 
         # print "The image has been set to "+type+" (previously "+str(self.hdr.get_data_dtype())+")"
         # change type of data in both numpy array and nifti header
-        type_build = eval(type)
+        type_build = eval(voxel_datatype)
         self.data = type_build(self.data)
-        self.hdr.set_data_dtype(type)
+        self.hdr.set_data_dtype(voxel_datatype)
 
-    def save(self, type=''):
+    def save(self, datatype=''):
         """
         Write an image in a nifti file
-        :param type:    if not set, the image is saved in standard type
+        :param datatype:    if not set, the image is saved in standard type
                         if 'minimize', image space is minimize
                         (2, 'uint8', np.uint8, "NIFTI_TYPE_UINT8"),
                         (4, 'int16', np.int16, "NIFTI_TYPE_INT16"),
@@ -208,22 +202,28 @@ class Image(object):
         """
         from nibabel import Nifti1Image, save
 
-        if type != '':
-            self.changeType(type)
+        if datatype != '':
+            self.change_type(datatype)
 
         self.hdr.set_data_shape(self.data.shape)
         img = Nifti1Image(self.data, None, self.hdr)
         print 'saving ' + self.path + self.file_name + self.ext + '\n'
         save(img, self.path + self.file_name + self.ext)
 
-    # flatten the array in a single dimension vector, its shape will be (d, 1) compared to the flatten built in method
-    # which would have returned (d,)
     def flatten(self):
+        """
+        Flatten the array in a single dimension vector, its shape will be (d, 1) compared to the flatten built in method
+         which would have returned (d,)
+        :return: image data flattened as a numpy array
+        """
         # return self.data.flatten().reshape(self.data.flatten().shape[0], 1)
         return self.data.flatten()
 
-    # return a list of the image slices flattened
+    #
     def slices(self):
+        """
+        :return: a list of the image slices flattened
+        """
         slices = []
         for slc in self.data:
             slices.append(slc.flatten())
@@ -237,8 +237,8 @@ class Image(object):
         """
         from msct_types import Coordinate
 
-        X, Y, Z = (self.data > 0).nonzero()
-        list_coordinates = [Coordinate([X[i], Y[i], Z[i], self.data[X[i], Y[i], Z[i]]]) for i in range(0, len(X))]
+        x, y, z = (self.data > 0).nonzero()
+        list_coordinates = [Coordinate([x[i], y[i], z[i], self.data[x[i], y[i], z[i]]]) for i in range(0, len(x))]
 
         if sorting is not None:
             if reverse_coord not in [True, False]:
@@ -269,33 +269,33 @@ class Image(object):
         array = asarray(array)
         data_mask = asarray(data_mask)
         new_data = []
-        buffer = []
+        buffer_temp = []
         buffer_mask = []
         s = 0
         r = 0
         ok = 0
-        for slice in data_mask:
+        for slice_image in data_mask:
             # print 'SLICE ', s, slice
-            for row in slice:
+            for row in slice_image:
                 if sum(row) > 0:
                     buffer_mask.append(row)
-                    buffer.append(array[s][r])
-                    #print 'OK1', ok
+                    buffer_temp.append(array[s][r])
+                    # print 'OK1', ok
                     ok += 1
                 r += 1
             new_slice_mask = asarray(buffer_mask).T
-            new_slice = asarray(buffer).T
+            new_slice = asarray(buffer_temp).T
             r = 0
-            buffer = []
+            buffer_temp = []
             for row in new_slice_mask:
                 if sum(row) != 0:
-                    buffer.append(new_slice[r])
+                    buffer_temp.append(new_slice[r])
                 r += 1
-            #print buffer
+            # print buffer_temp
             new_slice = asarray(buffer).T
             r = 0
             buffer_mask = []
-            buffer = []
+            buffer_temp = []
             new_data.append(new_slice)
             s += 1
         new_data = asarray(new_data)
@@ -314,9 +314,9 @@ class Image(object):
         imgplot.set_interpolation('nearest')
         show()
 
-# =======================================================================================================================
+# ======================================================================================================================
 # Start program
-#=======================================================================================================================
+# ======================================================================================================================
 if __name__ == "__main__":
     from msct_parser import Parser
     import sys
@@ -327,4 +327,4 @@ if __name__ == "__main__":
     arguments = parser.parse(sys.argv[1:])
 
     image = Image(arguments["-i"])
-    image.changeType('minimize')
+    image.change_type('minimize')
