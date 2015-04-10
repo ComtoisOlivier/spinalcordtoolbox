@@ -55,198 +55,163 @@
 # ---------------------------------------------------------------------------------------
 # Copyright (c) 2014 NeuroPoly, Polytechnique Montreal <www.neuropoly.info>
 # Authors: Benjamin De Leener, Julien Touati
-# Modified: 2014-07-01
+# Modified: 2015-04-10
 #
 # License: see the LICENSE.TXT
 #=======================================================================================================================
-# check if needed Python libraries are already installed or not
-try:
-    from numpy import *
-except ImportError:
-    print '--- numpy not installed! ---'
-    sys.exit(2)
-try:
-    from scipy.interpolate import interp1d
-except ImportError:
-    print '--- scipy not installed! ---'
-    sys.exit(2)
-#import matplotlib.pyplot as plt
-#from mpl_toolkits.mplot3d import Axes3D
+
+from numpy import poly1d, linspace, argsort, array, sort, insert, where, mean, diag, matrix, polymul
+from math import sqrt
 
 
 class NURBS():
-    def __init__(self, degre=3, precision=1000, liste=None, sens=False, nbControl=None, verbose=1, tolerance=0.01, maxControlPoints=50):
-        #(self, degre=3, precision=1000, liste=None, sens=False, nurbs_ctl_points=None, size=None, div=None)
+    def __init__(self, degree=3, precision=1000, data=None, number_control_points=None, verbose=1, tolerance=0.01, maxControlPoints=50):
         """
-        Ce constructeur initialise une NURBS et la construit.
+        This method reconstructs a NURBS based on the data entered in arguments.
         Si la variable sens est True : On construit la courbe en fonction des points de controle
         Si la variable sens est False : On reconstruit les points de controle en fonction de la courbe
         """
-        self.degre = degre+1
-        self.sens = sens
-        self.pointsControle = []
-        self.pointsControleRelatif = []
-        self.courbe3D = []
-        self.courbe3D_deriv = []
-        self.nbControle = 10  ### correspond au nombre de points de controle calcules.
+        self.degree = degree+1
         self.precision = precision
         self.tolerance = tolerance  # in mm
         self.maxControlPoints = maxControlPoints
         self.verbose = verbose
 
-        if sens:                  #### si on donne les points de controle#####
-            if type(liste[0][0]).__name__ == 'list':
-                self.pointsControle = liste
-            else:
-                self.pointsControle.append(liste)
-            for li in self.pointsControle:
-                [[P_x,P_y,P_z],[P_x_d,P_y_d,P_z_d]] = self.construct3D(li,degre)
-                self.courbe3D.append([[P_x[i],P_y[i],P_z[i]] for i in len(P_x)])
-                self.courbe3D_deriv.append([[P_x_d[i],P_y_d[i],P_z_d[i]] for i in len(P_x_d)])
+        # preparing data for NURBS reconstruction
+        data_x = [x[0] for x in data]
+        data_y = [x[1] for x in data]
+        data_z = [x[2] for x in data]
+        number_of_points = len(data_x)
+
+        # If we already know the number of control points, we can directly reconstruct the NURBS based on this number of
+        # points. The curve in 3D (and its derivative) will be computed as well.
+        if number_control_points is not None:
+            if verbose >= 1:
+                    print 'In NURBS we get nurbs_ctl_points = ', number_control_points
+            w = [1.0]*number_of_points
+            self.number_control_points = number_control_points
+            self.control_points = self.reconstructGlobalApproximation(data_x, data_y, data_z, self.degree, self.number_control_points, w)
+            self.curve, self.curve_derivative = self.construct3D(self.control_points, self.degree, self.precision)
         else:
-            # La liste est sous la forme d'une liste de points
-            P_x = [x[0] for x in liste]
-            P_y = [x[1] for x in liste]
-            P_z = [x[2] for x in liste]
+            error_curve = 1000.0
+            self.number_control_points = self.degree+1
 
-            if nbControl is None:
-                # self.nbControl = len(P_z)/5  ## ordre 3 -> len(P_z)/10, 4 -> len/7, 5-> len/5   permet d'obtenir une bonne approximation sans trop "interpoler" la courbe
-                # compute the ideal number of control points based on tolerance
-                error_curve = 1000.0
-                self.nbControle = self.degre+1
+            # compute weights based on curve density
+            w = [1.0]*number_of_points
+            for i in range(1,number_of_points-1):
+                dist_before = sqrt((data_x[i-1]-data_x[i])**2+(data_y[i-1]-data_y[i])**2+(data_z[i-1]-data_z[i])**2)
+                dist_after = sqrt((data_x[i]-data_x[i+1])**2+(data_y[i]-data_y[i+1])**2+(data_z[i]-data_z[i+1])**2)
+                w[i] = (dist_before+dist_after)/2.0
+            w[0], w[-1] = w[1], w[-2]
 
-                # compute weights based on curve density
-                w = [1.0]*len(P_x)
-                for i in range(1,len(P_x)-1):
-                    dist_before = math.sqrt((P_x[i-1]-P_x[i])**2+(P_y[i-1]-P_y[i])**2+(P_z[i-1]-P_z[i])**2)
-                    dist_after = math.sqrt((P_x[i]-P_x[i+1])**2+(P_y[i]-P_y[i+1])**2+(P_z[i]-P_z[i+1])**2)
-                    w[i] = (dist_before+dist_after)/2.0
-                w[0], w[-1] = w[1], w[-2]
+            last_error_curve = 0.0
+            while not (not (abs(error_curve - last_error_curve) > self.tolerance) or not (
+                self.number_control_points < number_of_points) or not (self.number_control_points <= self.maxControlPoints)):
+                last_error_curve = error_curve
 
-                last_error_curve = 0.0
-                while abs(error_curve-last_error_curve) > self.tolerance and self.nbControle < len(P_x) and self.nbControle <= self.maxControlPoints:
-                    last_error_curve = error_curve
+                # compute the nurbs based on input data and number of control points
+                if verbose >= 1:
+                    print 'Test: # of control points = ' + str(self.number_control_points)
+                try:
+                    self.control_points = self.reconstructGlobalApproximation(data_x, data_y, data_z, self.degree, self.number_control_points, w)
 
-                    # compute the nurbs based on input data and number of controle points
+                    self.curve, self.curve_derivative = self.construct3D(self.control_points, self.degree, self.precision/3)  # generate curve with low resolution
+
+                    # compute error between the input data and the nurbs
+                    error_curve = 0.0
+                    for i in range(0, number_of_points):
+                        min_dist = 10000.0
+                        for k in range(0, len(self.curve[0])):
+                            dist = (self.curve[0][k]-data_x[i])**2+(self.curve[1][k]-data_y[i])**2+(self.curve[2][k]-data_z[i])**2
+                            if dist < min_dist:
+                                min_dist = dist
+                        error_curve += min_dist
+                    error_curve /= float(number_of_points)
+
                     if verbose >= 1:
-                        print 'Test: # of control points = ' + str(self.nbControle)
-                    try:
-                        self.pointsControle = self.reconstructGlobalApproximation(P_x, P_y, P_z, self.degre, self.nbControle, w)
+                        print 'Error on approximation = ' + str(round(error_curve, 2)) + ' mm'
 
-                        self.courbe3D, self.courbe3D_deriv = self.construct3D(self.pointsControle, self.degre, self.precision/3)  # generate curve with low resolution
+                except Exception as ex:
+                    if verbose >= 1:
+                        print ex
+                    error_curve = last_error_curve + 10000.0
 
-                        # compute error between the input data and the nurbs
-                        error_curve = 0.0
-                        for i in range(0,len(P_x)):
-                            min_dist = 10000.0
-                            for k in range(0,len(self.courbe3D[0])):
-                                dist = (self.courbe3D[0][k]-P_x[i])**2+(self.courbe3D[1][k]-P_y[i])**2+(self.courbe3D[2][k]-P_z[i])**2
-                                if dist < min_dist:
-                                    min_dist = dist
-                            error_curve += min_dist
-                        error_curve /= float(len(P_x))
+                # prepare for next iteration
+                self.number_control_points += 1
+            self.number_control_points -= 1  # last addition does not count
 
-                        if verbose >= 1:
-                            print 'Error on approximation = ' + str(round(error_curve, 2)) + ' mm'
+            self.curve, self.curve_derivative = self.construct3D(self.control_points, self.degree, self.precision)
+            if verbose >= 1:
+                print 'Number of control points of the optimal NURBS = ' + str(self.number_control_points)
 
-                    except Exception as ex:
-                        if verbose >= 1:
-                            print ex
-                        error_curve = last_error_curve + 10000.0
-                        #error_curve = float('Inf')
+    def get_control_points(self):
+        return self.control_points
 
-                    # prepare for next iteration
-                    self.nbControle += 1
-                self.nbControle -= 1  # last addition does not count
+    def set_control_points(self, control_points):
+        self.control_points = control_points
 
-                self.courbe3D, self.courbe3D_deriv = self.construct3D(self.pointsControle, self.degre, self.precision)  # generate curve with hig resolution
-                if verbose >= 1:
-                    print 'Number of control points of the optimal NURBS = ' + str(self.nbControle)
-            else:
-                if verbose >= 1:
-                    print 'In NURBS we get nurbs_ctl_points = ',nbControl
-                w = [1.0]*len(P_x)
-                self.nbControl = nbControl  # increase nbeControle if "short data"
-                self.pointsControle = self.reconstructGlobalApproximation(P_x, P_y, P_z, self.degre, self.nbControle, w)
-                self.courbe3D, self.courbe3D_deriv= self.construct3D(self.pointsControle, self.degre, self.precision)
+    def get_curve(self):
+        return self.curve
 
-    def getControle(self):
-        return self.pointsControle
+    def get_curve_derivative(self):
+        return self.curve_derivative
 
-    def setControle(self,pointsControle):
-        self.pointsControle = pointsControle
-
-
-    def getCourbe3D(self):
-        return self.courbe3D
-
-    def getCourbe3D_deriv(self):
-        return self.courbe3D_deriv
-
-    # Multiplie deux polynomes
-    def multipolynome(self,polyA,polyB):
-        result = [];
-        for r in polyB:
-            temp = polyA*r[0]
-            result.append([temp, r[-1]])
-        return result
-
-    def N(self,i,k,x):
+    def N(self, i, k, x):
         global Nik_temp
-        if k==1:
-            tab = [[poly1d(1),i+1]]
+        if k == 1:
+            tab = [[poly1d(1), i+1]]
         else:
             tab = []
-            den_g = x[i+k-1]-x[i]
-            den_d = x[i+k]-x[i+1]
+            den_g = x[i+k-1] - x[i]
+            den_d = x[i+k] - x[i+1]
             if den_g != 0:
                 if Nik_temp[i][k-1] == -1:
-                    Nik_temp[i][k-1] = self.N(i,k-1,x)
-                tab_b = self.multipolynome(poly1d([1/den_g,-x[i]/den_g]),Nik_temp[i][k-1])
+                    Nik_temp[i][k-1] = self.N(i, k-1, x)
+                tab_b = polymul(poly1d([1/den_g, -x[i]/den_g]), Nik_temp[i][k-1])
                 tab.extend(tab_b)
             if den_d != 0:
                 if Nik_temp[i+1][k-1] == -1:
-                    Nik_temp[i+1][k-1] = self.N(i+1,k-1,x)
-                tab_d = self.multipolynome(poly1d([-1/den_d,x[i+k]/den_d]),Nik_temp[i+1][k-1])
+                    Nik_temp[i+1][k-1] = self.N(i+1, k-1, x)
+                tab_d = polymul(poly1d([-1/den_d, x[i+k]/den_d]), Nik_temp[i+1][k-1])
                 tab.extend(tab_d)
 
         return tab
 
-    def Np(self,i,k,x):
+    def Np(self, i, k, x):
         global Nik_temp_deriv, Nik_temp
-        if k==1:
-            tab = [[poly1d(0),i+1]]
+        if k == 1:
+            tab = [[poly1d(0), i+1]]
         else:
             tab = []
-            den_g = x[i+k-1]-x[i]
-            den_d = x[i+k]-x[i+1]
+            den_g = x[i+k-1] - x[i]
+            den_d = x[i+k] - x[i+1]
             if den_g != 0:
                 if Nik_temp_deriv[i][-1] == -1:
-                    Nik_temp_deriv[i][-1] = self.N(i,k-1,x)
-                tab_b = self.multipolynome(poly1d([k/den_g]),Nik_temp_deriv[i][-1])
+                    Nik_temp_deriv[i][-1] = self.N(i, k-1, x)
+                tab_b = polymul(poly1d([k/den_g]), Nik_temp_deriv[i][-1])
                 tab.extend(tab_b)
             if den_d != 0:
-                if Nik_temp_deriv[i+1][-1] == -1 :
+                if Nik_temp_deriv[i+1][-1] == -1:
                     Nik_temp_deriv[i+1][-1] = self.N(i+1,k-1,x)
-                tab_d = self.multipolynome(poly1d([-k/den_d]),Nik_temp_deriv[i+1][-1])
+                tab_d = polymul(poly1d([-k/den_d]), Nik_temp_deriv[i+1][-1])
                 tab.extend(tab_d)
 
         return tab
 
-    def evaluateN(self,Ni,t,x):
-        result = 0;
+    def evaluateN(self, Ni, t, x):
+        result = 0
         for Ni_temp in Ni:
             if x[Ni_temp[-1]-1] <= t <= x[Ni_temp[-1]]:
                 result += Ni_temp[0](t)
         return result
 
 
-    def calculX3D(self,P,k):
+    def calculX3D(self, P, k):
         n = len(P)-1
         c = []
         sumC = 0
         for i in xrange(n):
-            dist = math.sqrt((P[i+1][0]-P[i][0])**2 + (P[i+1][1]-P[i][1])**2 + (P[i+1][2]-P[i][2])**2)
+            dist = sqrt((P[i+1][0]-P[i][0])**2 + (P[i+1][1]-P[i][1])**2 + (P[i+1][2]-P[i][2])**2)
             c.append(dist)
             sumC += dist
 
@@ -260,8 +225,9 @@ class NURBS():
 
         return x
 
-    def construct3D(self,P,k,prec): # P point de controles
+    def construct3D(self, P, k, prec): # P point de controles
         global Nik_temp, Nik_temp_deriv
+
         n = len(P) # Nombre de points de controle - 1
 
         # Calcul des xi
@@ -366,7 +332,7 @@ class NURBS():
 
         return [P_x,P_y,P_z], [P_x_d,P_y_d,P_z_d]
 
-    def Tk(self,k,Q,Nik,ubar,u):
+    def Tk(self, k, Q, Nik, ubar, u):
         return Q[k] - self.evaluateN(Nik[-1],ubar,u)*Q[-1] - self.evaluateN(Nik[0],ubar,u)*Q[0]
 
     def isXinY(self, y, x):
@@ -382,7 +348,7 @@ class NURBS():
         return result
 
 
-    def reconstructGlobalApproximation(self,P_x,P_y,P_z,p,n,w):
+    def reconstructGlobalApproximation(self, P_x, P_y, P_z, p, n, w):
         # p = degre de la NURBS
         # n = nombre de points de controle desires
         # w is the weigth on each point P
@@ -392,12 +358,12 @@ class NURBS():
         # Calcul des chords
         di = 0.0
         for k in xrange(m-1):
-            di += math.sqrt((P_x[k+1]-P_x[k])**2 + (P_y[k+1]-P_y[k])**2 + (P_z[k+1]-P_z[k])**2)
+            di += sqrt((P_x[k+1]-P_x[k])**2 + (P_y[k+1]-P_y[k])**2 + (P_z[k+1]-P_z[k])**2)
         ubar = [0]
         for k in xrange(m-1):
             #ubar.append((k+1)/float(m))  # uniform method
             #ubar.append(ubar[-1]+abs((P_x[k+1]-P_x[k])**2 + (P_y[k+1]-P_y[k])**2 + (P_z[k+1]-P_z[k])**2)/di)  # chord length method
-            ubar.append(ubar[-1]+math.sqrt((P_x[k+1]-P_x[k])**2 + (P_y[k+1]-P_y[k])**2 + (P_z[k+1]-P_z[k])**2)/di)  # centripetal method
+            ubar.append(ubar[-1]+sqrt((P_x[k+1]-P_x[k])**2 + (P_y[k+1]-P_y[k])**2 + (P_z[k+1]-P_z[k])**2)/di)  # centripetal method
 
 
         # the knot vector should reflect the distribution of ubar
@@ -504,7 +470,7 @@ class NURBS():
 
         return P
 
-    def reconstructGlobalInterpolation(self,P_x,P_y,P_z,p):  ### now in 3D
+    def reconstructGlobalInterpolation(self, P_x, P_y, P_z, p):
         global Nik_temp
         n = 13
         l = len(P_x)
@@ -519,11 +485,11 @@ class NURBS():
         # Calcul du vecteur de noeuds
         di = 0
         for k in xrange(n-1):
-            di += math.sqrt((newPx[k+1]-newPx[k])**2 + (newPy[k+1]-newPy[k])**2 +(newPz[k+1]-newPz[k])**2)
+            di += sqrt((newPx[k+1]-newPx[k])**2 + (newPy[k+1]-newPy[k])**2 +(newPz[k+1]-newPz[k])**2)
         u = [0]*p
         ubar = [0]
         for k in xrange(n-1):
-            ubar.append(ubar[-1]+math.sqrt((newPx[k+1]-newPx[k])**2 + (newPy[k+1]-newPy[k])**2 + (newPz[k+1]-newPz[k])**2)/di)
+            ubar.append(ubar[-1]+sqrt((newPx[k+1]-newPx[k])**2 + (newPy[k+1]-newPy[k])**2 + (newPz[k+1]-newPz[k])**2)/di)
         for j in xrange(n-p):
             sumU = 0
             for i in xrange(p):
