@@ -224,10 +224,7 @@ class Image(object):
         """
         :return: a list of the image slices flattened
         """
-        slices = []
-        for slc in self.data:
-            slices.append(slc.flatten())
-        return slices
+        return [slc.flatten() for slc in self.data]
 
     def getNonZeroCoordinates(self, sorting=None, reverse_coord=False):
         """
@@ -306,6 +303,56 @@ class Image(object):
     def invert(self):
         self.data = self.data.max() - self.data
         return self
+
+    def change_orientation(self, orientation='RPI'):
+        """
+        This function changes the orientation of the data by swapping the image axis.
+        Warning: the nifti image header is not change!!!
+        :param orientation: string of three character representing the new orientation (ex: AIL, default: RPI)
+        :return:
+        """
+        opposite_character = {'L': 'R', 'R': 'L', 'A': 'P', 'P': 'A', 'I': 'S', 'S': 'I'}
+
+        if self.orientation is None:
+            from sct_orientation import get_orientation
+            self.orientation = get_orientation(self.file_name)
+
+        # change the orientation of the image
+        perm = [0, 1, 2]
+        inversion = [1, 1, 1]
+        for i, character in enumerate(self.orientation):
+            try:
+                perm[i] = orientation.index(character)
+            except ValueError:
+                perm[i] = orientation.index(opposite_character[character])
+                inversion[i] = -1
+
+        # axes inversion
+        self.data = self.data[::inversion[0], ::inversion[1], ::inversion[2]]
+
+        # axes manipulations
+        from numpy import swapaxes
+        if perm == [1, 0, 2]:
+            self.data = swapaxes(self.data, 0, 1)
+        elif perm == [2, 1, 0]:
+            self.data = swapaxes(self.data, 0, 2)
+        elif perm == [0, 2, 1]:
+            self.data = swapaxes(self.data, 1, 2)
+        elif perm == [2, 1, 0]:
+            self.data = swapaxes(self.data, 0, 2)
+        elif perm == [2, 0, 1]:
+            self.data = swapaxes(self.data, 0, 2)  # transform [2, 0, 1] to [1, 0, 2]
+            self.data = swapaxes(self.data, 0, 1)  # transform [1, 0, 2] to [0, 1, 2]
+        elif perm == [1, 2, 0]:
+            self.data = swapaxes(self.data, 0, 2)  # transform [1, 2, 0] to [0, 2, 1]
+            self.data = swapaxes(self.data, 1, 2)  # transform [0, 2, 1] to [0, 1, 2]
+        elif perm == [0, 1, 2]:
+            # do nothing
+            pass
+        else:
+            print 'Error: wrong orientation'
+
+        self.orientation = orientation
 
     def show(self):
         from matplotlib.pyplot import imshow, show
