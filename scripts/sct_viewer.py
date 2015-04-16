@@ -35,7 +35,7 @@ class TrioPlot:
         return
 
     def move(self, event):
-        if event.inaxes == self.fig_axial.axes:
+        if event.inaxes == self.viewer.list_image[0].axial_plot.axes:
             for image_itr in self.viewer.list_image:
                 image_itr.frontal_plot.set_data(image_itr.data[event.xdata, :, :].T)
                 image_itr.sagittal_plot.set_data(image_itr.data[:, event.ydata, :].T)
@@ -46,7 +46,7 @@ class TrioPlot:
             self.press = event.xdata, event.ydata
             return
 
-        elif event.inaxes == self.fig_frontal.axes:
+        elif event.inaxes == self.viewer.list_image[0].frontal_plot.axes:
             for image_itr in self.viewer.list_image:
                 image_itr.axial_plot.set_data(image_itr.data[:, :, event.ydata].T)
                 image_itr.sagittal_plot.set_data(image_itr.data[:, event.xdata, :].T)
@@ -57,7 +57,7 @@ class TrioPlot:
             self.press = event.xdata, event.ydata
             return
 
-        elif event.inaxes == self.fig_sagittal.axes:
+        elif event.inaxes == self.viewer.list_image[0].sagittal_plot.axes:
             for image_itr in self.viewer.list_image:
                 image_itr.axial_plot.set_data(image_itr.data[:, :, event.ydata].T)
                 image_itr.frontal_plot.set_data(image_itr.data[event.xdata, :, :].T)
@@ -73,7 +73,8 @@ class TrioPlot:
             return
 
     def on_scroll(self, event):
-        if event.inaxes not in [self.fig_axial.axes, self.fig_frontal.axes, self.fig_sagittal.axes]:
+        if event.inaxes not in [self.viewer.list_image[0].axial_plot.axes, self.viewer.list_image[0].frontal_plot.axes,
+                                self.viewer.list_image[0].sagittal_plot.axes]:
             return
 
         base_scale = 0.95
@@ -97,15 +98,18 @@ class TrioPlot:
         event.inaxes.set_xlim([event.xdata - new_width * (1 - relative_x), event.xdata + new_width * relative_x])
         event.inaxes.set_ylim([event.ydata - new_height * (1 - relative_y), event.ydata + new_height * relative_y])
 
-        if event.inaxes == self.fig_axial.axes:
-            self.ax_axial.draw_artist(self.ax_axial.patch)
-            self.draw_axial()
-        elif event.inaxes == self.fig_frontal.axes:
-            self.ax_frontal.draw_artist(self.ax_frontal.patch)
-            self.draw_frontal()
-        elif event.inaxes == self.fig_sagittal.axes:
-            self.ax_sagittal.draw_artist(self.ax_sagittal.patch)
-            self.draw_sagittal()
+        if event.inaxes == self.viewer.list_image[0].axial_plot.axes:
+            self.viewer.ax_axial.draw_artist(self.viewer.ax_axial.patch)
+            for image_itr in self.viewer.list_image:
+                image_itr.draw_axial(self.viewer.ax_axial)
+        elif event.inaxes == self.viewer.list_image[0].frontal_plot.axes:
+            self.viewer.ax_frontal.draw_artist(self.viewer.ax_frontal.patch)
+            for image_itr in self.viewer.list_image:
+                image_itr.draw_frontal(self.viewer.ax_frontal)
+        elif event.inaxes == self.viewer.list_image[0].sagittal_plot.axes:
+            self.viewer.ax_sagittal.draw_artist(self.viewer.ax_sagittal.patch)
+            for image_itr in self.viewer.list_image:
+                image_itr.draw_sagittal(self.viewer.ax_sagittal)
 
         self.position = event.xdata, event.ydata
 
@@ -143,18 +147,6 @@ class TrioPlot:
         else:
             return
 
-    def update_min_max_contrast(self, min_value, max_value):
-        self.fig_axial.set_clim(min_value, max_value)
-        self.fig_frontal.set_clim(min_value, max_value)
-        self.fig_sagittal.set_clim(min_value, max_value)
-
-        self.ax_axial.draw_artist(self.fig_axial)
-        self.fig_axial.figure.canvas.blit(self.ax_axial.bbox)
-        self.ax_frontal.draw_artist(self.fig_frontal)
-        self.fig_frontal.figure.canvas.blit(self.ax_frontal.bbox)
-        self.ax_sagittal.draw_artist(self.fig_sagittal)
-        self.fig_sagittal.figure.canvas.blit(self.ax_sagittal.bbox)
-
     def connect(self):
         for image_itr in self.viewer.list_image:
             image_itr.connect(self)
@@ -185,17 +177,12 @@ class VolViewer(object):
             print "Error, the image is actually not an image"
 
     def update_min_contrast(self, val):
-        """
-        Test
-        :param val:
-        :return
-        """
-        self.min_contrast = val  # type: int
-        self.trio.update_min_max_contrast(self.min_contrast, self.max_contrast)
+        self.list_image[0].min_contrast = val  # type: int
+        self.list_image[0].update_min_max_contrast(self.ax_axial, self.ax_frontal, self.ax_sagittal)
 
     def update_max_contrast(self, val):
-        self.max_contrast = val
-        self.trio.update_min_max_contrast(self.min_contrast, self.max_contrast)
+        self.list_image[0].max_contrast = val
+        self.list_image[0].update_min_max_contrast(self.ax_axial, self.ax_frontal, self.ax_sagittal)
 
     def show(self):
         self.fig = plt.figure(facecolor='black')
@@ -212,7 +199,7 @@ class VolViewer(object):
         self.ax_axial.hold(True)
         for image_itr in self.list_image:
             image_itr.axial_plot = self.ax_axial.imshow(image_itr.data[:, :, int(image_itr.data.shape[2] / 2)].T,
-                                                        interpolation='nearest', extent=axial_extent, cmap='gray',
+                                                        interpolation='nearest', cmap='gray',
                                                         vmin=image_itr.min_contrast, vmax=image_itr.max_contrast)
 
         self.ax_frontal = self.fig.add_subplot(222)
@@ -220,7 +207,7 @@ class VolViewer(object):
         self.ax_frontal.hold(True)
         for image_itr in self.list_image:
             image_itr.frontal_plot = self.ax_frontal.imshow(image_itr.data[int(image_itr.data.shape[0]/2), :, :].T,
-                                                            interpolation='nearest', extent=frontal_extent, cmap='gray',
+                                                            interpolation='nearest', cmap='gray',
                                                             vmin=image_itr.min_contrast, vmax=image_itr.max_contrast)
 
         self.ax_sagittal = self.fig.add_subplot(223)
@@ -228,7 +215,7 @@ class VolViewer(object):
         self.ax_sagittal.hold(True)
         for image_itr in self.list_image:
             image_itr.sagittal_plot = self.ax_sagittal.imshow(image_itr.data[:, int(image_itr.data.shape[1]/2), :].T,
-                                                              interpolation='nearest', extent=sagittal_extent, cmap='gray',
+                                                              interpolation='nearest', cmap='gray',
                                                               vmin=image_itr.min_contrast, vmax=image_itr.max_contrast)
 
         # TODO: change TrioPlot to consider multiple image
@@ -239,14 +226,15 @@ class VolViewer(object):
 
         from matplotlib.widgets import Slider
         position_slider_min = self.fig.add_axes([0.55, 0.1, 0.35, 0.03])
-        slider_min = Slider(position_slider_min, 'Min', self.min_contrast_init, self.max_contrast_init,
-                            valinit=self.min_contrast)
+        slider_min = Slider(position_slider_min, 'Min', self.list_image[0].min_contrast_init,
+                            self.list_image[0].max_contrast_init, valinit=self.list_image[0].min_contrast)
         slider_min.on_changed(self.update_min_contrast)
         slider_min.label.set_color('white')
         slider_min.valtext.set_color('white')
         position_slider_max = self.fig.add_axes([0.55, 0.05, 0.35, 0.03])
-        slider_max = Slider(position_slider_max, 'Max', self.min_contrast_init, self.max_contrast_init,
-                            valinit=self.max_contrast, slidermin=slider_min)
+        slider_max = Slider(position_slider_max, 'Max', self.list_image[0].min_contrast_init,
+                            self.list_image[0].max_contrast_init, valinit=self.list_image[0].max_contrast,
+                            slidermin=slider_min)
         slider_max.on_changed(self.update_max_contrast)
         slider_max.label.set_color('white')
         slider_max.valtext.set_color('white')
@@ -261,8 +249,14 @@ class ImageViewer(Image):
         from numpy import percentile
         self.min_contrast = percentile(self.data[:], 1)
         self.max_contrast = percentile(self.data[:], 99)
-        self.min_contrast_init = self.min_contrast  # alternative: min(self.image.data[:])
-        self.max_contrast_init = self.max_contrast  # alternative: max(self.image.data[:])
+        # check if min != max
+        if self.min_contrast == self.max_contrast:
+            from numpy import min, max
+            self.min_contrast = min(self.data[:])
+            self.max_contrast = max(self.data[:])
+
+        self.min_contrast_init = self.min_contrast
+        self.max_contrast_init = self.max_contrast
         self.change_orientation('LAS')
 
         self.axial_plot = None
@@ -280,6 +274,15 @@ class ImageViewer(Image):
     def draw_sagittal(self, ax_sagittal):
         ax_sagittal.draw_artist(self.sagittal_plot)
         self.sagittal_plot.figure.canvas.blit(ax_sagittal.bbox)
+
+    def update_min_max_contrast(self, ax_axial, ax_frontal, ax_sagittal):
+        self.axial_plot.set_clim(self.min_contrast, self.max_contrast)
+        self.frontal_plot.set_clim(self.min_contrast, self.max_contrast)
+        self.sagittal_plot.set_clim(self.min_contrast, self.max_contrast)
+
+        self.draw_axial(ax_axial)
+        self.draw_frontal(ax_frontal)
+        self.draw_sagittal(ax_sagittal)
 
     def connect(self, plot):
         """
@@ -325,10 +328,11 @@ class ImageViewer(Image):
 if __name__ == "__main__":
     parser = Parser(__file__)
     parser.usage.set_description('Volume Viewer')
-    parser.add_option("-i", "file", "file", True)
+    parser.add_option("-i", [[','], 'file'], "file", True)
     arguments = parser.parse(sys.argv[1:])
 
-    image = Image(arguments["-i"])
     viewer = VolViewer()
-    viewer.add_image(image)
+    for image_str in arguments["-i"]:
+        image = Image(image_str)
+        viewer.add_image(image)
     viewer.show()
