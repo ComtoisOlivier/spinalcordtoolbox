@@ -36,10 +36,14 @@ class TrioPlot:
 
     def move(self, event):
         if event.inaxes == self.viewer.list_image[0].axial_plot.axes:
+            self.viewer.ax_frontal.draw_artist(self.viewer.ax_frontal.patch)
+            self.viewer.ax_sagittal.draw_artist(self.viewer.ax_sagittal.patch)
+
             for image_itr in self.viewer.list_image:
                 image_itr.frontal_plot.set_data(image_itr.data[event.xdata, :, :].T)
                 image_itr.sagittal_plot.set_data(image_itr.data[:, event.ydata, :].T)
 
+            for image_itr in self.viewer.list_image:
                 image_itr.draw_frontal(self.viewer.ax_frontal)
                 image_itr.draw_sagittal(self.viewer.ax_sagittal)
 
@@ -47,10 +51,14 @@ class TrioPlot:
             return
 
         elif event.inaxes == self.viewer.list_image[0].frontal_plot.axes:
+            self.viewer.ax_axial.draw_artist(self.viewer.ax_axial.patch)
+            self.viewer.ax_sagittal.draw_artist(self.viewer.ax_sagittal.patch)
+
             for image_itr in self.viewer.list_image:
                 image_itr.axial_plot.set_data(image_itr.data[:, :, event.ydata].T)
                 image_itr.sagittal_plot.set_data(image_itr.data[:, event.xdata, :].T)
 
+            for image_itr in self.viewer.list_image:
                 image_itr.draw_axial(self.viewer.ax_axial)
                 image_itr.draw_sagittal(self.viewer.ax_sagittal)
 
@@ -58,10 +66,14 @@ class TrioPlot:
             return
 
         elif event.inaxes == self.viewer.list_image[0].sagittal_plot.axes:
+            self.viewer.ax_axial.draw_artist(self.viewer.ax_axial.patch)
+            self.viewer.ax_frontal.draw_artist(self.viewer.ax_frontal.patch)
+
             for image_itr in self.viewer.list_image:
                 image_itr.axial_plot.set_data(image_itr.data[:, :, event.ydata].T)
                 image_itr.frontal_plot.set_data(image_itr.data[event.xdata, :, :].T)
 
+            for image_itr in self.viewer.list_image:
                 image_itr.draw_axial(self.viewer.ax_axial)
                 image_itr.draw_frontal(self.viewer.ax_frontal)
 
@@ -125,6 +137,9 @@ class TrioPlot:
         if event.xdata is None or event.ydata is None or self.press[0] is None or self.press[1] is None:
             return
 
+        if event.xdata is self.press[0] and event.ydata is self.press[1]:
+            return
+
         if event.xdata and abs(event.xdata - self.press[0]) < 1 and abs(event.ydata - self.press[0]) < 1:
             self.press = event.xdata, event.ydata
             return
@@ -136,6 +151,9 @@ class TrioPlot:
 
     def on_release(self, event):
         if event.xdata is None or event.ydata is None or self.press[0] is None or self.press[1] is None:
+            return
+
+        if event.xdata is self.press[0] and event.ydata is self.press[1]:
             return
 
         if event.xdata and abs(event.xdata - self.press[0]) < 1 and abs(event.ydata - self.press[0]) < 1:
@@ -173,6 +191,8 @@ class VolViewer(object):
     def add_image(self, image_input):
         if isinstance(image_input, Image):
             self.list_image.append(ImageViewer(image_input))
+            if len(self.list_image) > 1:
+                self.list_image[-1].alpha = 0.75
         else:
             print "Error, the image is actually not an image"
 
@@ -184,22 +204,26 @@ class VolViewer(object):
         self.list_image[0].max_contrast = val
         self.list_image[0].update_min_max_contrast(self.ax_axial, self.ax_frontal, self.ax_sagittal)
 
+    def update_alpha(self, val):
+        self.list_image[0].update_alpha(val, self.ax_axial, self.ax_frontal, self.ax_sagittal)
+
     def show(self):
         self.fig = plt.figure(facecolor='black')
         self.fig.subplots_adjust(bottom=0.1, left=0.1)
 
         # compute extent based on first image
         shape_first_image = self.list_image[0].data.shape
-        axial_extent = 0, 0, shape_first_image[0], shape_first_image[1]
-        frontal_extent = 0, 0, shape_first_image[1], shape_first_image[2]
-        sagittal_extent = 0, 0, shape_first_image[0], shape_first_image[2]
+        axial_extent = 0, shape_first_image[0], 0, shape_first_image[1]
+        frontal_extent = 0, shape_first_image[1], 0, shape_first_image[2]
+        sagittal_extent = 0, shape_first_image[0], 0, shape_first_image[2]
 
         self.ax_axial = self.fig.add_subplot(221)
         self.ax_axial.patch.set_facecolor('black')
         self.ax_axial.hold(True)
         for image_itr in self.list_image:
             image_itr.axial_plot = self.ax_axial.imshow(image_itr.data[:, :, int(image_itr.data.shape[2] / 2)].T,
-                                                        interpolation='nearest', cmap='gray',
+                                                        interpolation='nearest', cmap=image_itr.colormap,
+                                                        alpha=image_itr.alpha, extent=axial_extent,
                                                         vmin=image_itr.min_contrast, vmax=image_itr.max_contrast)
 
         self.ax_frontal = self.fig.add_subplot(222)
@@ -207,7 +231,8 @@ class VolViewer(object):
         self.ax_frontal.hold(True)
         for image_itr in self.list_image:
             image_itr.frontal_plot = self.ax_frontal.imshow(image_itr.data[int(image_itr.data.shape[0]/2), :, :].T,
-                                                            interpolation='nearest', cmap='gray',
+                                                            interpolation='nearest', cmap=image_itr.colormap,
+                                                            alpha=image_itr.alpha, extent=frontal_extent,
                                                             vmin=image_itr.min_contrast, vmax=image_itr.max_contrast)
 
         self.ax_sagittal = self.fig.add_subplot(223)
@@ -215,23 +240,35 @@ class VolViewer(object):
         self.ax_sagittal.hold(True)
         for image_itr in self.list_image:
             image_itr.sagittal_plot = self.ax_sagittal.imshow(image_itr.data[:, int(image_itr.data.shape[1]/2), :].T,
-                                                              interpolation='nearest', cmap='gray',
+                                                              interpolation='nearest', cmap=image_itr.colormap,
+                                                              alpha=image_itr.alpha, extent=sagittal_extent,
                                                               vmin=image_itr.min_contrast, vmax=image_itr.max_contrast)
 
-        # TODO: change TrioPlot to consider multiple image
         # TODO: make alpha possible
         # TODO: make masking possible when data is zero (zero is transparent)
+        # TODO: add color info
         self.trio = TrioPlot(self)
         self.trio.connect()
 
         from matplotlib.widgets import Slider
-        position_slider_min = self.fig.add_axes([0.55, 0.1, 0.35, 0.03])
+        # slider alpha
+        position_slider_alpha = self.fig.add_axes([0.55, 0.15, 0.35, 0.025])
+        slider_alpha = Slider(position_slider_alpha, 'Alpha', self.list_image[0].min_contrast_init,
+                              self.list_image[0].alpha, valinit=self.list_image[0].alpha)
+        slider_alpha.on_changed(self.update_alpha)
+        slider_alpha.label.set_color('white')
+        slider_alpha.valtext.set_color('white')
+
+        # slider minimal contrast
+        position_slider_min = self.fig.add_axes([0.55, 0.1, 0.35, 0.025])
         slider_min = Slider(position_slider_min, 'Min', self.list_image[0].min_contrast_init,
                             self.list_image[0].max_contrast_init, valinit=self.list_image[0].min_contrast)
         slider_min.on_changed(self.update_min_contrast)
         slider_min.label.set_color('white')
         slider_min.valtext.set_color('white')
-        position_slider_max = self.fig.add_axes([0.55, 0.05, 0.35, 0.03])
+
+        # slider maximal contrast
+        position_slider_max = self.fig.add_axes([0.55, 0.05, 0.35, 0.025])
         slider_max = Slider(position_slider_max, 'Max', self.list_image[0].min_contrast_init,
                             self.list_image[0].max_contrast_init, valinit=self.list_image[0].max_contrast,
                             slidermin=slider_min)
@@ -249,11 +286,17 @@ class ImageViewer(Image):
         from numpy import percentile
         self.min_contrast = percentile(self.data[:], 1)
         self.max_contrast = percentile(self.data[:], 99)
-        # check if min != max
+        self.colormap = 'gray'
+        self.alpha = 1.0
+        # if min == max, the image is probably a segmentation and we change the constrast, as well as the colormap
         if self.min_contrast == self.max_contrast:
             from numpy import min, max
             self.min_contrast = min(self.data[:])
             self.max_contrast = max(self.data[:])
+            self.colormap = 'Oranges'
+
+        from numpy.ma import masked_where
+        self.data = masked_where(self.data <= 0, self.data)
 
         self.min_contrast_init = self.min_contrast
         self.max_contrast_init = self.max_contrast
@@ -279,6 +322,17 @@ class ImageViewer(Image):
         self.axial_plot.set_clim(self.min_contrast, self.max_contrast)
         self.frontal_plot.set_clim(self.min_contrast, self.max_contrast)
         self.sagittal_plot.set_clim(self.min_contrast, self.max_contrast)
+
+        self.draw_axial(ax_axial)
+        self.draw_frontal(ax_frontal)
+        self.draw_sagittal(ax_sagittal)
+
+    def update_alpha(self, alpha, ax_axial, ax_frontal, ax_sagittal):
+        self.alpha = alpha
+
+        self.axial_plot.set_alpha(self.alpha)
+        self.frontal_plot.set_alpha(self.alpha)
+        self.sagittal_plot.set_alpha(self.alpha)
 
         self.draw_axial(ax_axial)
         self.draw_frontal(ax_frontal)
