@@ -25,64 +25,10 @@ class TrioPlot:
     """
     This class manages mouse events on the three image subplots.
     """
-    def __init__(self, viewer_parent, ax_axial, fig_axial, ax_frontal, fig_frontal, ax_sagittal, fig_sagittal, volume):
+    def __init__(self, viewer_parent):
         self.viewer = viewer_parent
-        self.ax_axial = ax_axial
-        self.axial_xlim_origin = self.ax_axial.get_xlim()
-        self.axial_ylim_origin = self.ax_axial.get_ylim()
-        self.fig_axial = fig_axial
-        self.ax_frontal = ax_frontal
-        self.frontal_xlim_origin = self.ax_frontal.get_xlim()
-        self.frontal_ylim_origin = self.ax_frontal.get_ylim()
-        self.fig_frontal = fig_frontal
-        self.ax_sagittal = ax_sagittal
-        self.sagittal_xlim_origin = self.ax_sagittal.get_xlim()
-        self.sagittal_ylim_origin = self.ax_sagittal.get_ylim()
-        self.fig_sagittal = fig_sagittal
-        self.volume = volume
         self.press = 0, 0
         self.position = 0, 0
-
-        self.cidpress_axial = None
-        self.cidrelease_axial = None
-        self.cidmotion_axial = None
-        self.cidpress_frontal = None
-        self.cidrelease_frontal = None
-        self.cidmotion_frontal = None
-        self.cidpress_sagittal = None
-        self.cidrelease_sagittal = None
-        self.cidmotion_sagittal = None
-
-    def draw_axial(self):
-        self.ax_axial.draw_artist(self.fig_axial)
-        self.fig_axial.figure.canvas.blit(self.ax_axial.bbox)
-
-    def draw_frontal(self):
-        self.ax_frontal.draw_artist(self.fig_frontal)
-        self.fig_frontal.figure.canvas.blit(self.ax_frontal.bbox)
-
-    def draw_sagittal(self):
-        self.ax_sagittal.draw_artist(self.fig_sagittal)
-        self.fig_sagittal.figure.canvas.blit(self.ax_sagittal.bbox)
-
-    def connect(self):
-        """
-        connect to all the events we need
-        """
-        self.cidpress_axial = self.fig_axial.figure.canvas.mpl_connect('button_press_event', self.on_press)
-        self.cidrelease_axial = self.fig_axial.figure.canvas.mpl_connect('button_release_event', self.on_release)
-        self.cidmotion_axial = self.fig_axial.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
-        self.cidscroll_axial = self.fig_axial.figure.canvas.mpl_connect('scroll_event', self.on_scroll)
-
-        self.cidpress_frontal = self.fig_frontal.figure.canvas.mpl_connect('button_press_event', self.on_press)
-        self.cidrelease_frontal = self.fig_frontal.figure.canvas.mpl_connect('button_release_event', self.on_release)
-        self.cidmotion_frontal = self.fig_frontal.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
-        self.cidscroll_frontal = self.fig_frontal.figure.canvas.mpl_connect('scroll_event', self.on_scroll)
-
-        self.cidpress_sagittal = self.fig_sagittal.figure.canvas.mpl_connect('button_press_event', self.on_press)
-        self.cidrelease_sagittal = self.fig_sagittal.figure.canvas.mpl_connect('button_release_event', self.on_release)
-        self.cidmotion_sagittal = self.fig_sagittal.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
-        self.cidscroll_sagittal = self.fig_sagittal.figure.canvas.mpl_connect('scroll_event', self.on_scroll)
 
     def on_press(self, event):
         self.press = event.xdata, event.ydata
@@ -90,31 +36,34 @@ class TrioPlot:
 
     def move(self, event):
         if event.inaxes == self.fig_axial.axes:
-            self.fig_frontal.set_data(self.volume.data[event.xdata, :, :].T)
-            self.fig_sagittal.set_data(self.volume.data[:, event.ydata, :].T)
+            for image_itr in self.viewer.list_image:
+                image_itr.frontal_plot.set_data(image_itr.data[event.xdata, :, :].T)
+                image_itr.sagittal_plot.set_data(image_itr.data[:, event.ydata, :].T)
 
-            self.draw_frontal()
-            self.draw_sagittal()
+                image_itr.draw_frontal(self.viewer.ax_frontal)
+                image_itr.draw_sagittal(self.viewer.ax_sagittal)
 
             self.press = event.xdata, event.ydata
             return
 
         elif event.inaxes == self.fig_frontal.axes:
-            self.fig_axial.set_data(self.volume.data[:, :, event.ydata].T)
-            self.fig_sagittal.set_data(self.volume.data[:, event.xdata, :].T)
+            for image_itr in self.viewer.list_image:
+                image_itr.axial_plot.set_data(image_itr.data[:, :, event.ydata].T)
+                image_itr.sagittal_plot.set_data(image_itr.data[:, event.xdata, :].T)
 
-            self.draw_axial()
-            self.draw_sagittal()
+                image_itr.draw_axial(self.viewer.ax_axial)
+                image_itr.draw_sagittal(self.viewer.ax_sagittal)
 
             self.press = event.xdata, event.ydata
             return
 
         elif event.inaxes == self.fig_sagittal.axes:
-            self.fig_axial.set_data(self.volume.data[:, :, event.ydata].T)
-            self.fig_frontal.set_data(self.volume.data[event.xdata, :, :].T)
+            for image_itr in self.viewer.list_image:
+                image_itr.axial_plot.set_data(image_itr.data[:, :, event.ydata].T)
+                image_itr.frontal_plot.set_data(image_itr.data[event.xdata, :, :].T)
 
-            self.draw_axial()
-            self.draw_frontal()
+                image_itr.draw_axial(self.viewer.ax_axial)
+                image_itr.draw_frontal(self.viewer.ax_frontal)
 
             self.press = event.xdata, event.ydata
             return
@@ -178,8 +127,6 @@ class TrioPlot:
 
         if event.button == 1:  # left button
             return self.move(event)
-        elif event.button == 3:  # right button
-            return self.zoom_pan(event)
         else:
             return
 
@@ -193,8 +140,6 @@ class TrioPlot:
 
         if event.button == 1:
             return self.move(event)
-        elif event.button == 3:  # right button
-            return self.zoom_pan(event)
         else:
             return
 
@@ -210,24 +155,13 @@ class TrioPlot:
         self.ax_sagittal.draw_artist(self.fig_sagittal)
         self.fig_sagittal.figure.canvas.blit(self.ax_sagittal.bbox)
 
+    def connect(self):
+        for image_itr in self.viewer.list_image:
+            image_itr.connect(self)
+
     def disconnect(self):
-        """
-        disconnect all the stored connection ids
-        """
-        self.fig_axial.figure.canvas.mpl_disconnect(self.cidpress_axial)
-        self.fig_axial.figure.canvas.mpl_disconnect(self.cidrelease_axial)
-        self.fig_axial.figure.canvas.mpl_disconnect(self.cidmotion_axial)
-        self.fig_axial.figure.canvas.mpl_disconnect(self.cidscroll_axial)
-
-        self.fig_frontal.figure.canvas.mpl_disconnect(self.cidpress_frontal)
-        self.fig_frontal.figure.canvas.mpl_disconnect(self.cidrelease_frontal)
-        self.fig_frontal.figure.canvas.mpl_disconnect(self.cidmotion_frontal)
-        self.fig_frontal.figure.canvas.mpl_disconnect(self.cidscroll_frontal)
-
-        self.fig_sagittal.figure.canvas.mpl_disconnect(self.cidpress_sagittal)
-        self.fig_sagittal.figure.canvas.mpl_disconnect(self.cidrelease_sagittal)
-        self.fig_sagittal.figure.canvas.mpl_disconnect(self.cidmotion_sagittal)
-        self.fig_sagittal.figure.canvas.mpl_disconnect(self.cidscroll_sagittal)
+        for image_itr in self.viewer.list_image:
+            image_itr.disconnect(self)
 
 
 class VolViewer(object):
@@ -267,35 +201,40 @@ class VolViewer(object):
         self.fig = plt.figure(facecolor='black')
         self.fig.subplots_adjust(bottom=0.1, left=0.1)
 
-        ax_axial = self.fig.add_subplot(221)
-        ax_axial.patch.set_facecolor('black')
-        for image_itr in self.list_image:
-            im_plot_axial = ax_axial.imshow(image_itr.data[:, :, int(image_itr.data.shape[2]/2)].T,
-                                            vmin=image_itr.min_contrast, vmax=image_itr.max_contrast)
-            im_plot_axial.set_cmap('gray')
-            im_plot_axial.set_interpolation('nearest')
+        # compute extent based on first image
+        shape_first_image = self.list_image[0].data.shape
+        axial_extent = 0, 0, shape_first_image[0], shape_first_image[1]
+        frontal_extent = 0, 0, shape_first_image[1], shape_first_image[2]
+        sagittal_extent = 0, 0, shape_first_image[0], shape_first_image[2]
 
-        ax_frontal = self.fig.add_subplot(222)
-        ax_frontal.patch.set_facecolor('black')
+        self.ax_axial = self.fig.add_subplot(221)
+        self.ax_axial.patch.set_facecolor('black')
+        self.ax_axial.hold(True)
         for image_itr in self.list_image:
-            im_plot_frontal = ax_frontal.imshow(image_itr.data[int(image_itr.data.shape[0]/2), :, :].T,
-                                                vmin=image_itr.min_contrast, vmax=image_itr.max_contrast)
-            im_plot_frontal.set_cmap('gray')
-            im_plot_frontal.set_interpolation('nearest')
+            image_itr.axial_plot = self.ax_axial.imshow(image_itr.data[:, :, int(image_itr.data.shape[2] / 2)].T,
+                                                        interpolation='nearest', extent=axial_extent, cmap='gray',
+                                                        vmin=image_itr.min_contrast, vmax=image_itr.max_contrast)
 
-        ax_sagittal = self.fig.add_subplot(223)
-        ax_sagittal.patch.set_facecolor('black')
+        self.ax_frontal = self.fig.add_subplot(222)
+        self.ax_frontal.patch.set_facecolor('black')
+        self.ax_frontal.hold(True)
         for image_itr in self.list_image:
-            im_plot_sagittal = ax_sagittal.imshow(image_itr.data[:, int(image_itr.data.shape[1]/2), :].T,
-                                                  vmin=image_itr.min_contrast, vmax=image_itr.max_contrast)
-            im_plot_sagittal.set_cmap('gray')
-            im_plot_sagittal.set_interpolation('nearest')
+            image_itr.frontal_plot = self.ax_frontal.imshow(image_itr.data[int(image_itr.data.shape[0]/2), :, :].T,
+                                                            interpolation='nearest', extent=frontal_extent, cmap='gray',
+                                                            vmin=image_itr.min_contrast, vmax=image_itr.max_contrast)
+
+        self.ax_sagittal = self.fig.add_subplot(223)
+        self.ax_sagittal.patch.set_facecolor('black')
+        self.ax_sagittal.hold(True)
+        for image_itr in self.list_image:
+            image_itr.sagittal_plot = self.ax_sagittal.imshow(image_itr.data[:, int(image_itr.data.shape[1]/2), :].T,
+                                                              interpolation='nearest', extent=sagittal_extent, cmap='gray',
+                                                              vmin=image_itr.min_contrast, vmax=image_itr.max_contrast)
 
         # TODO: change TrioPlot to consider multiple image
         # TODO: make alpha possible
         # TODO: make masking possible when data is zero (zero is transparent)
-        self.trio = TrioPlot(self, ax_axial, im_plot_axial, ax_frontal, im_plot_frontal, ax_sagittal, im_plot_sagittal,
-                             self.image)
+        self.trio = TrioPlot(self)
         self.trio.connect()
 
         from matplotlib.widgets import Slider
@@ -317,14 +256,68 @@ class VolViewer(object):
 
 
 class ImageViewer(Image):
-    def __init__(self, image):
-        super(ImageViewer, self).__init__(image)
+    def __init__(self, image_input):
+        super(ImageViewer, self).__init__(image_input)
         from numpy import percentile
         self.min_contrast = percentile(self.data[:], 1)
         self.max_contrast = percentile(self.data[:], 99)
         self.min_contrast_init = self.min_contrast  # alternative: min(self.image.data[:])
         self.max_contrast_init = self.max_contrast  # alternative: max(self.image.data[:])
         self.change_orientation('LAS')
+
+        self.axial_plot = None
+        self.frontal_plot = None
+        self.sagittal_plot = None
+
+    def draw_axial(self, ax_axial):
+        ax_axial.draw_artist(self.axial_plot)
+        self.axial_plot.figure.canvas.blit(ax_axial.bbox)
+
+    def draw_frontal(self, ax_frontal):
+        ax_frontal.draw_artist(self.frontal_plot)
+        self.frontal_plot.figure.canvas.blit(ax_frontal.bbox)
+
+    def draw_sagittal(self, ax_sagittal):
+        ax_sagittal.draw_artist(self.sagittal_plot)
+        self.sagittal_plot.figure.canvas.blit(ax_sagittal.bbox)
+
+    def connect(self, plot):
+        """
+        connect to all the events we need
+        """
+        self.cidpress_axial = self.axial_plot.figure.canvas.mpl_connect('button_press_event', plot.on_press)
+        self.cidrelease_axial = self.axial_plot.figure.canvas.mpl_connect('button_release_event', plot.on_release)
+        self.cidmotion_axial = self.axial_plot.figure.canvas.mpl_connect('motion_notify_event', plot.on_motion)
+        self.cidscroll_axial = self.axial_plot.figure.canvas.mpl_connect('scroll_event', plot.on_scroll)
+
+        self.cidpress_frontal = self.frontal_plot.figure.canvas.mpl_connect('button_press_event', plot.on_press)
+        self.cidrelease_frontal = self.frontal_plot.figure.canvas.mpl_connect('button_release_event', plot.on_release)
+        self.cidmotion_frontal = self.frontal_plot.figure.canvas.mpl_connect('motion_notify_event', plot.on_motion)
+        self.cidscroll_frontal = self.frontal_plot.figure.canvas.mpl_connect('scroll_event', plot.on_scroll)
+
+        self.cidpress_sagittal = self.sagittal_plot.figure.canvas.mpl_connect('button_press_event', plot.on_press)
+        self.cidrelease_sagittal = self.sagittal_plot.figure.canvas.mpl_connect('button_release_event', plot.on_release)
+        self.cidmotion_sagittal = self.sagittal_plot.figure.canvas.mpl_connect('motion_notify_event', plot.on_motion)
+        self.cidscroll_sagittal = self.sagittal_plot.figure.canvas.mpl_connect('scroll_event', plot.on_scroll)
+
+    def disconnect(self):
+        """
+        disconnect all the stored connection ids
+        """
+        self.axial_plot.figure.canvas.mpl_disconnect(self.cidpress_axial)
+        self.axial_plot.figure.canvas.mpl_disconnect(self.cidrelease_axial)
+        self.axial_plot.figure.canvas.mpl_disconnect(self.cidmotion_axial)
+        self.axial_plot.figure.canvas.mpl_disconnect(self.cidscroll_axial)
+
+        self.frontal_plot.figure.canvas.mpl_disconnect(self.cidpress_frontal)
+        self.frontal_plot.figure.canvas.mpl_disconnect(self.cidrelease_frontal)
+        self.frontal_plot.figure.canvas.mpl_disconnect(self.cidmotion_frontal)
+        self.frontal_plot.figure.canvas.mpl_disconnect(self.cidscroll_frontal)
+
+        self.sagittal_plot.figure.canvas.mpl_disconnect(self.cidpress_sagittal)
+        self.sagittal_plot.figure.canvas.mpl_disconnect(self.cidrelease_sagittal)
+        self.sagittal_plot.figure.canvas.mpl_disconnect(self.cidmotion_sagittal)
+        self.sagittal_plot.figure.canvas.mpl_disconnect(self.cidscroll_sagittal)
 
 # ======================================================================================================================
 # Start program
@@ -336,5 +329,6 @@ if __name__ == "__main__":
     arguments = parser.parse(sys.argv[1:])
 
     image = Image(arguments["-i"])
-    viewer = VolViewer(image)
+    viewer = VolViewer()
+    viewer.add_image(image)
     viewer.show()
