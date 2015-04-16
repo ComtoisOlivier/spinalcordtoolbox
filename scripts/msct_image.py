@@ -35,7 +35,7 @@ class Image(object):
         if type(param) is str:
             self.load_from_path(param, verbose)
         # copy constructor
-        elif isinstance(param, type(self)):
+        elif type(param) is Image:
             self.copy(param)
         # create an empty image (full of zero) of dimension [dim]. dim must be [x,y,z] or (x,y,z). No header.
         elif type(param) is list:
@@ -63,7 +63,7 @@ class Image(object):
     def copy(self, image_to_copy=None):
         from copy import deepcopy
         from sct_utils import extract_fname
-        if image is not None:
+        if image_to_copy is not None:
             self.data = deepcopy(image_to_copy.data)
             self.dim = deepcopy(image_to_copy.dim)
             self.hdr = deepcopy(image_to_copy.hdr)
