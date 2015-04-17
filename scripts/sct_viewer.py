@@ -220,6 +220,7 @@ class VolViewer(object):
         self.ax_axial = self.fig.add_subplot(221)
         self.ax_axial.patch.set_facecolor('black')
         self.ax_axial.hold(True)
+        self.ax_axial.axis('off')
         for image_itr in self.list_image:
             image_itr.axial_plot = self.ax_axial.imshow(image_itr.data[:, :, int(image_itr.data.shape[2] / 2)].T,
                                                         interpolation='nearest', cmap=image_itr.colormap,
@@ -229,6 +230,7 @@ class VolViewer(object):
         self.ax_frontal = self.fig.add_subplot(222)
         self.ax_frontal.patch.set_facecolor('black')
         self.ax_frontal.hold(True)
+        self.ax_frontal.axis('off')
         for image_itr in self.list_image:
             image_itr.frontal_plot = self.ax_frontal.imshow(image_itr.data[int(image_itr.data.shape[0]/2), :, :].T,
                                                             interpolation='nearest', cmap=image_itr.colormap,
@@ -238,6 +240,7 @@ class VolViewer(object):
         self.ax_sagittal = self.fig.add_subplot(223)
         self.ax_sagittal.patch.set_facecolor('black')
         self.ax_sagittal.hold(True)
+        self.ax_sagittal.axis('off')
         for image_itr in self.list_image:
             image_itr.sagittal_plot = self.ax_sagittal.imshow(image_itr.data[:, int(image_itr.data.shape[1]/2), :].T,
                                                               interpolation='nearest', cmap=image_itr.colormap,
