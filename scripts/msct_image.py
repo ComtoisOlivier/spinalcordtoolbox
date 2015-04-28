@@ -35,7 +35,7 @@ class Image(object):
         if type(param) is str:
             self.load_from_path(param, verbose)
         # copy constructor
-        elif type(param) is Image:
+        elif issubclass(type(param), Image):
             self.copy(param)
         # create an empty image (full of zero) of dimension [dim]. dim must be [x,y,z] or (x,y,z). No header.
         elif type(param) is list:
